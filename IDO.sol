@@ -11,26 +11,28 @@ contract IDO {
     IERC20 constant STLA = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F); //REPLACE ADDRESS LATER
     IERC20 public token;
 
+    address public constant ADMIN = 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4;
+    address public projectOwner;
+    bool public finalized;
+
     uint256 public fundingGoal;
     uint256 public tokensPerUnit;
     uint256 public startTime;
     uint256 public endTime;
     uint256 public totalRaised;
-    address public admin;
-    address public projectOwner;
-
-    uint256 public totalRaisedT1; 
-    uint256 public totalRaisedT2; 
-    uint256 public totalRaisedT3;
-
-    uint256 public tierOneMaxCap;
-    uint256 public tierTwoMaxCap;
-    uint256 public tierThreeMaxCap;
+    
+    uint256 public totalRaisedTierOne; 
+    uint256 public totalRaisedTierTwo; 
+    uint256 public totalRaisedTierThree;
 
     //total users per tier
     uint256 public totalUserInTierOne;
     uint256 public totalUserInTierTwo;
     uint256 public totalUserInTierThree;
+
+    uint256 public maxCapTierOne;
+    uint256 public maxCapTierTwo;
+    uint256 public maxCapTierThree;
 
     //max allocations per user in a tier
     uint256 public maxAllocaPerUserTierOne;
@@ -42,7 +44,7 @@ contract IDO {
     uint256 public minAllocaPerUserTierTwo;
     uint256 public minAllocaPerUserTierThree;
 
-    bool public finalized;
+    // Replace with struct to reduce gas costs
 
     mapping(address => bool) private whitelistTierOne;
     mapping(address => bool) private whitelistTierTwo;
@@ -58,37 +60,35 @@ contract IDO {
     }
 
     modifier adminOnly { 
-        require(msg.sender == admin, "IDO: admin only");
+        require(msg.sender == ADMIN, "IDO: admin only");
         _;
     }
 
     constructor(
-        address _adminAddress,
-        address _tokenAddress,
+        address _token,
         address _projectOwner,
         uint256 _fundingGoal,
         uint256 _tokensPerUnit,
         uint256 _startTime,
         uint256 _endTime,
-        uint256 _tierOneMaxCap,
-        uint256 _tierTwoMaxCap,
-        uint256 _tierThreeMaxCap
+        uint256 _maxCapTierOne,
+        uint256 _maxCapTierTwo,
+        uint256 _maxCapTierThree
     ) {
-        bool valid = _tokenAddress != address(0) && _startTime > block.timestamp && _startTime < _endTime;
+        bool valid = _token != address(0) && _startTime > block.timestamp && _startTime < _endTime;
 
         if(!valid) revert("IDO: invalid constructor args");
 
-        admin = _adminAddress;
-        token = IERC20(_tokenAddress);
+        token = IERC20(_token);
         projectOwner = _projectOwner;
         fundingGoal = _fundingGoal;
         tokensPerUnit = _tokensPerUnit;
         startTime = _startTime;
         endTime = _endTime;
 
-        tierOneMaxCap = _tierOneMaxCap;
-        tierTwoMaxCap = _tierTwoMaxCap;
-        tierThreeMaxCap = _tierThreeMaxCap;
+        maxCapTierOne = _maxCapTierOne;
+        maxCapTierTwo = _maxCapTierTwo;
+        maxCapTierThree = _maxCapTierThree;
 
         minAllocaPerUserTierOne = 1000; // SAMPLE VALUES
         minAllocaPerUserTierTwo = 2000;
@@ -98,9 +98,9 @@ contract IDO {
         totalUserInTierTwo = 2;
         totalUserInTierThree = 2;
 
-        maxAllocaPerUserTierOne = tierOneMaxCap / totalUserInTierOne;
-        maxAllocaPerUserTierTwo = tierTwoMaxCap / totalUserInTierTwo;
-        maxAllocaPerUserTierThree = tierThreeMaxCap / totalUserInTierThree;
+        maxAllocaPerUserTierOne = maxCapTierOne / totalUserInTierOne;
+        maxAllocaPerUserTierTwo = maxCapTierTwo / totalUserInTierTwo;
+        maxAllocaPerUserTierThree = maxCapTierThree / totalUserInTierThree;
     }
 
     receive() external payable {
@@ -113,13 +113,13 @@ contract IDO {
         uint256 _tierThreeValue
     ) external adminOnly {
 
-        tierOneMaxCap = _tierOneValue;
-        tierTwoMaxCap = _tierTwoValue;
-        tierThreeMaxCap = _tierThreeValue;
+        maxCapTierOne = _tierOneValue;
+        maxCapTierTwo = _tierTwoValue;
+        maxCapTierThree = _tierThreeValue;
        
-        maxAllocaPerUserTierOne = tierOneMaxCap / totalUserInTierOne;
-        maxAllocaPerUserTierTwo = tierTwoMaxCap / totalUserInTierTwo;
-        maxAllocaPerUserTierThree = tierThreeMaxCap / totalUserInTierThree;
+        maxAllocaPerUserTierOne = maxCapTierOne / totalUserInTierOne;
+        maxAllocaPerUserTierTwo = maxCapTierTwo / totalUserInTierTwo;
+        maxAllocaPerUserTierThree = maxCapTierThree / totalUserInTierThree;
     }
 
     function whiteListAddress(address _user) external adminOnly {
@@ -133,10 +133,6 @@ contract IDO {
             whitelistTierTwo[_user] = true;
         else 
             whitelistTierThree[_user] = true;
-    }
-
-    function transferAdminRole(address _newAdmin) external adminOnly {
-        admin = _newAdmin;
     }
 
     function checkTier(address _user) public view returns (uint8) {
@@ -162,7 +158,7 @@ contract IDO {
                 "Amount must be higher"
             );
             require(
-                totalRaisedT1 + msg.value <= tierOneMaxCap,
+                totalRaisedTierOne + msg.value <= maxCapTierOne,
                 "Exceeding tier 1 max cap"
             );
             require(
@@ -170,7 +166,7 @@ contract IDO {
                 "Exceeding tier 1 investment limit"
             );
 
-            totalRaisedT1 += msg.value;
+            totalRaisedTierOne += msg.value;
 
         }else if(tier == 2) {
             tierTwoContributions[msg.sender] += msg.value;
@@ -179,7 +175,7 @@ contract IDO {
                 "Amount must be higher"
             );
             require(
-                totalRaisedT2 + msg.value <= tierTwoMaxCap,
+                totalRaisedTierTwo + msg.value <= maxCapTierTwo,
                 "Exceeding tier 2 max cap"
             );
             require(
@@ -187,7 +183,7 @@ contract IDO {
                 "Exceeding tier 2 investment limit"
             );
 
-            totalRaisedT2 += msg.value;
+            totalRaisedTierTwo += msg.value;
 
         }else if(tier == 3) {
             tierThreeContributions[msg.sender] += msg.value;
@@ -196,7 +192,7 @@ contract IDO {
                 "Amount must be higher"
             );
             require(
-                totalRaisedT3 + msg.value <= tierThreeMaxCap,
+                totalRaisedTierThree + msg.value <= maxCapTierThree,
                 "Exceeding tier 3 max cap"
             );
             require(
@@ -204,7 +200,7 @@ contract IDO {
                 "Exceeding tier 3 investment limit"
             );
 
-            totalRaisedT3 += msg.value;
+            totalRaisedTierThree += msg.value;
 
         }else revert("IDO: not whitelisted");
 
@@ -242,7 +238,7 @@ contract IDO {
         require(tierOneContributions[msg.sender] > 0 
         || tierTwoContributions[msg.sender] > 0 
         || tierThreeContributions[msg.sender]>0 
-        , "IDO: not contribution");
+        , "IDO: no contribution");
 
         uint8 tier = checkTier(msg.sender);
         uint256 refund;
@@ -267,7 +263,7 @@ contract IDO {
         finalized = true;
 
         if(_goalReached()){
-            (bool a_success, ) = payable(admin).call{value: address(this).balance * 10 / 100}("");
+            (bool a_success, ) = payable(msg.sender).call{value: address(this).balance * 10 / 100}("");
             require(a_success);
             (bool o_success, ) = payable(projectOwner).call{value: address(this).balance}("");
             require(o_success);
